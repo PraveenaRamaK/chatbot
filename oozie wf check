@@ -1,0 +1,35 @@
+#!/bin/bash
+
+# Specify the Oozie job ID of the workflow to monitor
+job_id="YOUR_JOB_ID"
+
+# Define the interval between status checks (in seconds)
+interval=120
+
+# Loop until the workflow completes
+while true; do
+    # Run the Oozie job -info command and capture the output
+    oozie_output=$(oozie job -info "$job_id")
+
+    # Check the status of the workflow
+    if echo "$oozie_output" | grep -q "Status\s*: FAILED"; then
+        status="Failed"
+        break
+    elif echo "$oozie_output" | grep -q "Status\s*: SUCCEEDED"; then
+        status="Succeeded"
+        break
+    else
+        status="Running"
+    fi
+
+    # Wait for the specified interval before the next check
+    sleep "$interval"
+done
+
+# Define email parameters
+email_to="your_email@example.com"
+email_subject="Oozie Workflow Status Notification"
+email_message="The Oozie workflow with ID $job_id has $status."
+
+# Send the email notification
+echo "$email_message" | mail -s "$email_subject" "$email_to"
