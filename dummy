@@ -23,5 +23,6 @@ echo "$content" | grep -o '<tr>.*</tr>' | while IFS= read -r line; do
     echo "Key: $key, Value: $value"
 done
 
-TRY 7
+TRY 7 (second option is without space)
 echo "$content" | awk -F'</?th[^>]*>' 'BEGIN { RS="<tr>"; OFS=", " } NR>1 {gsub(/[[:space:]]/, ""); if (NF > 1) print $2, $4}'
+echo "$content" | awk -F'</?th[^>]*>' 'BEGIN { RS="<tr>"; OFS="," } NR>1 {gsub(/[[:space:]]/, ""); if (NF > 1) print $2, $4}'
