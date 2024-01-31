@@ -23,6 +23,12 @@ echo "$content" | grep -o '<tr>.*</tr>' | while IFS= read -r line; do
     echo "Key: $key, Value: $value"
 done
 
-TRY 7 (second option is without space)
-echo "$content" | awk -F'</?th[^>]*>' 'BEGIN { RS="<tr>"; OFS=", " } NR>1 {gsub(/[[:space:]]/, ""); if (NF > 1) print $2, $4}'
+TRY 7 (WORKING)
 echo "$content" | awk -F'</?th[^>]*>' 'BEGIN { RS="<tr>"; OFS="," } NR>1 {gsub(/[[:space:]]/, ""); if (NF > 1) print $2, $4}'
+
+TRY 8 (for multiple columns)
+# Extract column headers
+column_headers=$(echo "$content" | awk -F'</?th[^>]*>' 'NR==1 {for (i=2; i<=NF; i+=2) {gsub(/[[:space:]]/, ""); printf "%s%s", $i, (i<NF ? OFS : ORS)}}')
+
+# Extract key-value pairs using awk
+echo "$content" | awk -F'</?th[^>]*>' -v headers="$column_headers" 'BEGIN { RS="<tr>"; OFS=","; split(headers, columns, ",") } NR>1 {gsub(/[[:space:]]/, ""); for (i=2; i<=NF; i+=2) printf "%s%s", $i, (i<NF ? OFS : ORS)}'
