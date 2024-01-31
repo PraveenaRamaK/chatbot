@@ -1,2 +1,4 @@
-workflow_names=$(echo "$table_content" | awk -F'</?\(t[hdr]\|td\|th\)>' 'NR>1 {gsub(/^[ \t]+|[ \t]+$/, ""); print $2}')
-target_table_names=$(echo "$table_content" | awk -F'</?\(t[hdr]\|td\|th\)>' 'NR>1 {gsub(/^[ \t]+|[ \t]+$/, ""); print $4}')
+table_content=$(echo "$content" | grep -o '<table[^>]*>.*</table>')
+
+# Extract key-value pairs using awk
+key_value_pairs=$(echo "$table_content" | awk -F'col' 'NR>1 {gsub(/^[ \t]+|[ \t]+$/, ""); if (NF > 1) print $1, $2}')
