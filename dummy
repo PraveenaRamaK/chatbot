@@ -44,4 +44,4 @@ echo "$content" | awk -F'</?th[^>]*>' -v headers="$column_headers" 'BEGIN { RS="
 
 formatted_values=$(echo "$values" | tr ' ' '\n' | paste -s -d ',' - | sed 's/\([^,]*,[^,]*,[^,]*\)/\1\n/g' | sed 's/,$//')
 
-formatted_values=$(echo "$values" | tr ' ' '\n' | paste -s -d ',' - | sed 's/\([^,]*,[^,]*,[^,]*\)/\1\n/g')
+formatted_values=$(echo "$values" | tr ' ' '\n' | paste -s -d ',' - | awk '{gsub(/,/, ", "); if(NR%3==0 && NR>1) print ""; else printf $0}')
