@@ -1,0 +1,2 @@
+workflow_names=$(echo "$table_content" | awk -F'</?\(t[hdr]\|td\|th\)>' 'NR>1 {gsub(/^[ \t]+|[ \t]+$/, ""); print $2}')
+target_table_names=$(echo "$table_content" | awk -F'</?\(t[hdr]\|td\|th\)>' 'NR>1 {gsub(/^[ \t]+|[ \t]+$/, ""); print $4}')
