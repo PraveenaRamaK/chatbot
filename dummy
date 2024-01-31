@@ -28,7 +28,7 @@ echo "$content" | awk -F'</?th[^>]*>' 'BEGIN { RS="<tr>"; OFS="," } NR>1 {gsub(/
 
 TRY 8 (for multiple columns)
 # Extract column headers
-column_headers=$(echo "$content" | awk -F'</?th[^>]*>' 'NR==1 {for (i=2; i<=NF; i+=2) {gsub(/[[:space:]]/, ""); printf "%s%s", $i, (i<NF ? OFS : ORS)}}')
+column_headers=$(echo "$content" | awk -F'</?th[^>]*>' 'NR==1 {for (i=2; i<=NF; i+=2) {gsub(/[[:space:]]/, ""); printf "%s%s", $i, (i<NF ? "," : ORS)}}')
 
 # Extract key-value pairs using awk
 echo "$content" | awk -F'</?th[^>]*>' -v headers="$column_headers" 'BEGIN { RS="<tr>"; OFS=","; split(headers, columns, ",") } NR>1 {gsub(/[[:space:]]/, ""); for (i=2; i<=NF; i+=2) printf "%s%s", $i, (i<NF ? OFS : ORS)}'
