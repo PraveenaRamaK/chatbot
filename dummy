@@ -13,5 +13,12 @@ key_value_pairs=$(echo "$content" | awk -F'</?th[^>]*>' 'NR>1 {gsub(/[[:space:]]
 TRY 4
 key_value_pairs=$(echo "$content" | awk -F'</?th[^>]*>' 'NR>1 {if (NF > 1) {print $2, $4}}')
 
-TRY 5
+TRY 5 (worked for first occurence)
 key_value_pairs=$(echo "$content" | grep -o '<th[^>]*>.*</th>' | awk -F'</?th[^>]*>' '{if (NF > 1) {print $2, $4}}')
+
+TRY 6 in a loop
+while IFS= read -r line; do
+    key=$(echo "$line" | awk -F'</?th[^>]*>' '{if (NF > 1) {print $2}}')
+    value=$(echo "$line" | awk -F'</?th[^>]*>' '{if (NF > 1) {print $4}}')
+    echo "Key: $key, Value: $value"
+done < <(echo "$content" | grep -o '<tr>.*</tr>' | grep -o '<th[^>]*>.*</th>')
