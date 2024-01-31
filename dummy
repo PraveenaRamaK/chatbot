@@ -2,3 +2,7 @@ table_content=$(echo "$content" | grep -o '<table[^>]*>.*</table>')
 
 # Extract key-value pairs using awk
 key_value_pairs=$(echo "$table_content" | awk -F'col' 'NR>1 {gsub(/^[ \t]+|[ \t]+$/, ""); if (NF > 1) print $1, $2}')
+
+
+TRY 2
+key_value_pairs=$(echo "$content" | awk -F'</?th[^>]*>' 'NR>1 {gsub(/^[ \t]+|[ \t]+$/, ""); if (NF > 1) print $2, $4}')
