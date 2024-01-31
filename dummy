@@ -9,3 +9,6 @@ key_value_pairs=$(echo "$content" | awk -F'</?th[^>]*>' 'NR>1 {gsub(/^[ \t]+|[ \
 
 TRY 3
 key_value_pairs=$(echo "$content" | awk -F'</?th[^>]*>' 'NR>1 {gsub(/[[:space:]]/, ""); if (NF > 1) print $2, $4}')
+
+TRY 4
+key_value_pairs=$(echo "$content" | awk -F'</?th[^>]*>' 'NR>1 {if (NF > 1) {print $2, $4}}')
