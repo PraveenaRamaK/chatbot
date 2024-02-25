@@ -1,0 +1,36 @@
+#!/bin/bash
+
+# Path to CSV file
+csv_file="your_file.csv"
+
+# Read CSV file
+codes_present=false
+zero_counts=false
+while IFS=, read -r code date_col count; do
+    if [[ $code -eq 1 || $code -eq 5 ]]; then
+        codes_present=true
+        if [[ $count -eq 0 ]]; then
+            zero_counts=true
+        fi
+    fi
+done < "$csv_file"
+
+# Suspend coordinator if necessary
+if [[ $codes_present == false || $zero_counts == true ]]; then
+    # Suspend coordinator command goes here
+    echo "Coordinator suspended!"
+    suspended_message="<p>Coordinator suspended!</p>"
+else
+    suspended_message="<p>Coordinator running normally.</p>"
+fi
+
+# Generate HTML table
+html_table=$(awk 'BEGIN {print "<table border=\"1\"><tr><th>code</th><th>date_col</th><th>count</th></tr>"} {print "<tr><td>" $1 "</td><td>" $2 "</td><td>" $3 "</td></tr>"} END {print "</table>"}' "$csv_file")
+
+# Generate HTML email
+html_content="<html><head></head><body><h2>CSV Data</h2>$html_table<h2>Suspension Message</h2>$suspended_message</body></html>"
+
+# Write HTML content to file
+echo "$html_content" > mail.html
+
+echo "HTML email generated successfully!"
