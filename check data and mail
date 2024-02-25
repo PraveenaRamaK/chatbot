@@ -1,6 +1,6 @@
 Apologies for the oversight. Let's correct the HTML generation part to ensure the table is formatted properly. Here's the corrected script:
 
-```bash
+
 #!/bin/bash
 
 # Path to CSV file
@@ -45,6 +45,33 @@ html_content="<html><head></head><body><h2>CSV Data</h2>$html_table<h2>Suspensio
 echo "$html_content" > mail.html
 
 echo "HTML email generated successfully!"
-```
 
-This script will properly generate the HTML table with the correct formatting for each row.
+##################################################################################################################################################################
+suspend_coordinator() {
+    # Coordinator name
+    coordinator_name="your_coordinator_name"
+
+    # Find coordinator ID using coordinator name
+    coordinator_id=$(oozie jobs -oozie http://oozie-server:11000/oozie -jobtype coordinator -filter name=$coordinator_name | awk 'NR==3 {print $1}')
+
+    if [ -z "$coordinator_id" ]; then
+        echo "Coordinator ID not found for $coordinator_name"
+        exit 1
+    fi
+
+    # Get coordinator status
+    coordinator_status=$(oozie job -oozie http://oozie-server:11000/oozie -info "$coordinator_id" | grep "^Status" | awk '{print $2}')
+
+    if [ "$coordinator_status" == "SUSPENDED" ]; then
+        echo "Coordinator $coordinator_name is already suspended"
+    elif [ "$coordinator_status" == "RUNNING" ]; then
+        # Suspend the coordinator
+        oozie job -oozie http://oozie-server:11000/oozie -suspend "$coordinator_id"
+        echo "Coordinator $coordinator_name suspended successfully"
+    else
+        echo "Coordinator $coordinator_name is in status: $coordinator_status"
+    fi
+}
+
+# Call the method
+suspend_coordinator
