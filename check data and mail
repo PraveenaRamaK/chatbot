@@ -1,3 +1,6 @@
+Apologies for the oversight. Let's correct the HTML generation part to ensure the table is formatted properly. Here's the corrected script:
+
+```bash
 #!/bin/bash
 
 # Path to CSV file
@@ -24,8 +27,16 @@ else
     suspended_message="<p>Coordinator running normally.</p>"
 fi
 
-# Generate HTML table
-html_table=$(awk 'BEGIN {print "<table border=\"1\"><tr><th>code</th><th>date_col</th><th>count</th></tr>"} {print "<tr><td>" $1 "</td><td>" $2 "</td><td>" $3 "</td></tr>"} END {print "</table>"}' "$csv_file")
+# Generate HTML table header
+html_table="<table border=\"1\"><tr><th>code</th><th>date_col</th><th>count</th></tr>"
+
+# Read CSV file to generate HTML table rows
+while IFS=, read -r code date_col count; do
+    html_table+="<tr><td>$code</td><td>$date_col</td><td>$count</td></tr>"
+done < "$csv_file"
+
+# Close HTML table tag
+html_table+="</table>"
 
 # Generate HTML email
 html_content="<html><head></head><body><h2>CSV Data</h2>$html_table<h2>Suspension Message</h2>$suspended_message</body></html>"
@@ -34,3 +45,6 @@ html_content="<html><head></head><body><h2>CSV Data</h2>$html_table<h2>Suspensio
 echo "$html_content" > mail.html
 
 echo "HTML email generated successfully!"
+```
+
+This script will properly generate the HTML table with the correct formatting for each row.
