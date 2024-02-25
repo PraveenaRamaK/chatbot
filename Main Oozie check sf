@@ -1,0 +1,35 @@
+#!/bin/bash
+
+# HDFS flag file location
+flag_file="/user/cloudera/job_flag/"
+
+# Check if the flag file exists
+if hdfs dfs -test -e "$flag_file"; then
+    # Get the filename of the flag file
+    filename=$(basename $(hdfs dfs -ls "$flag_file" | tail -n 1 | awk '{print $8}'))
+    
+    # Extract status and date from the filename
+    status=$(echo "$filename" | awk -F'_' '{print $2}')
+    date_part=$(echo "$filename" | awk -F'_' '{print $3}')
+
+    echo "Status of the job: $status"
+
+    # Check if the job is still running
+    if [[ "$status" == "RUNNING" ]]; then
+        echo "The job is still running."
+    elif [[ "$status" == "SUCCESS" ]]; then
+        # Get today's date in YYYYMMDD format
+        today=$(date +"%Y%m%d")
+
+        # Check if the date in the file name matches today's date
+        if [[ "$date_part" == "$today" ]]; then
+            echo "The job completed successfully today."
+        else
+            echo "The job completed successfully on a different date: $date_part"
+        fi
+    else
+        echo "Unknown status: $status"
+    fi
+else
+    echo "Flag file not found."
+fi
