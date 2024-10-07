@@ -13,11 +13,10 @@ fi
 drop_partitions() {
     local table=$1
 
-    # Fetch all available partitions for the table
-    # You can modify this query based on your database (e.g., Hive, MySQL, etc.)
+    # Fetch all available partitions for the table using TSV format for cleaner output
     echo "Fetching partitions for table: $table"
     
-    partitions=$(hive -e "SHOW PARTITIONS $table;" 2>/dev/null)
+    partitions=$(beeline --outputformat=tsv2 -e "SHOW PARTITIONS $table;" 2>/dev/null)
 
     # Check if partitions exist
     if [[ -z "$partitions" ]]; then
@@ -27,20 +26,27 @@ drop_partitions() {
 
     # Loop over each partition and drop it
     while IFS= read -r partition; do
-        echo "Dropping partition $partition from table $table"
-        
-        # Construct the ALTER TABLE command to drop the partition
-        SQL_CMD="ALTER TABLE $table DROP PARTITION ($partition) PURGE;"
-        echo "Executing: $SQL_CMD"
+        if [[ -n "$partition" ]]; then
+            echo "Processing partition $partition for table $table"
 
-        # Execute the command (this assumes you're using Hive; adjust if necessary)
-        hive -e "$SQL_CMD"
+            # Convert partition into the correct format for ALTER TABLE statement
+            # e.g., from "load_date=2024-07-21/country_cd=US" or "load_date=2024-07-21"
+            # to "load_date='2024-07-21', country_cd='US'"
+            formatted_partition=$(echo "$partition" | sed "s/=/='/g" | sed "s/\//', /g" | sed "s/$/'/g")
 
-        # Check if the command was successful
-        if [[ $? -eq 0 ]]; then
-            echo "Successfully dropped partition $partition from table $table"
-        else
-            echo "Failed to drop partition $partition from table $table"
+            # Construct the ALTER TABLE command to drop the partition
+            SQL_CMD="ALTER TABLE $table DROP PARTITION ($formatted_partition) PURGE;"
+            echo "Executing: $SQL_CMD"
+
+            # Execute the command using Beeline
+            beeline --outputformat=tsv2 -e "$SQL_CMD"
+
+            # Check if the command was successful
+            if [[ $? -eq 0 ]]; then
+                echo "Successfully dropped partition $partition from table $table"
+            else
+                echo "Failed to drop partition $partition from table $table"
+            fi
         fi
     done <<< "$partitions"
 }
