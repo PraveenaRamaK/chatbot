@@ -1,0 +1,47 @@
+#!/bin/bash
+
+# Path to the file containing the list of tables
+TABLE_LIST_FILE="table_list.txt"
+# HDFS base directory (change this accordingly)
+HDFS_BASE_DIR="/user/username/db_name"
+# Output file for results
+OUTPUT_FILE="hdfs_check_results.txt"
+
+# Check if the file exists
+if [[ ! -f $TABLE_LIST_FILE ]]; then
+    echo "Table list file not found: $TABLE_LIST_FILE"
+    exit 1
+fi
+
+# Clear the output file before writing results
+> "$OUTPUT_FILE"
+
+# Loop through each table in the table list file
+while IFS= read -r table; do
+    if [[ -n "$table" ]]; then
+        # Construct the HDFS path for the table
+        HDFS_PATH="$HDFS_BASE_DIR/$table"
+        
+        echo "Checking directory: $HDFS_PATH"
+
+        # Perform ls and check if the directory contains any entries (files or directories)
+        FILE_COUNT=$(hdfs dfs -ls "$HDFS_PATH" | wc -l)
+
+        # Check if the directory is empty or contains directories
+        if [[ $FILE_COUNT -eq 0 ]]; then
+            echo "Directory $HDFS_PATH is empty." >> "$OUTPUT_FILE"
+        else
+            # Check if any of the entries are directories
+            if hdfs dfs -ls "$HDFS_PATH" | awk '$1 ~ /^d/ {print; exit}' > /dev/null; then
+                echo "Directory $HDFS_PATH contains directories." >> "$OUTPUT_FILE"
+            fi
+        fi
+    fi
+done < "$TABLE_LIST_FILE"
+
+# Print final message
+if [[ -s "$OUTPUT_FILE" ]]; then
+    echo "Check completed. Results stored in $OUTPUT_FILE."
+else
+    echo "No directories found in any tables. Output file is empty."
+fi
