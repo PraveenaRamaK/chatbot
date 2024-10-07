@@ -31,25 +31,25 @@ drop_partitions() {
 
     # Initialize a flag to track if load_date was found
     load_date_found=false
-    first_load_date=""
+    oldest_load_date=""
 
-    # Loop through partitions to find load_date
+    # Loop through partitions to find the oldest load_date
     for partition in "${cleaned_partitions[@]}"; do
         if [[ $partition == *"load_date="* ]]; then
             load_date_found=true
             load_date_value=$(echo "$partition" | grep -o "load_date=[^/]*" | cut -d '=' -f 2)
             
-            # Set the first load_date if it's the earliest or the first found
-            if [[ -z "$first_load_date" || "$load_date_value" < "$first_load_date" ]]; then
-                first_load_date="$load_date_value"
+            # Set the oldest load_date if it's earlier than the current oldest
+            if [[ -z "$oldest_load_date" || "$load_date_value" < "$oldest_load_date" ]]; then
+                oldest_load_date="$load_date_value"
             fi
         fi
     done
 
     # Case: If more than 3 partitions and load_date is found
     if [[ $partition_count -gt 3 && $load_date_found == true ]]; then
-        # Perform bulk deletion based on load_date
-        SQL_CMD="ALTER TABLE $table DROP PARTITION (load_date >= '$first_load_date') PURGE;"
+        # Perform bulk deletion based on the oldest load_date
+        SQL_CMD="ALTER TABLE $table DROP PARTITION (load_date >= '$oldest_load_date') PURGE;"
         echo "Executing bulk partition deletion: $SQL_CMD"
 
         # Execute the command using Beeline
@@ -57,7 +57,7 @@ drop_partitions() {
 
         # Check if the command was successful
         if [[ $? -eq 0 ]]; then
-            echo "Successfully dropped partitions from load_date >= $first_load_date from table $table"
+            echo "Successfully dropped partitions from load_date >= $oldest_load_date from table $table"
         else
             echo "Failed to drop partitions from table $table"
         fi
