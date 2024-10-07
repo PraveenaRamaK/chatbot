@@ -18,20 +18,41 @@ drop_partitions() {
     
     partitions=$(beeline --outputformat=tsv2 -e "SHOW PARTITIONS $table;" 2>/dev/null)
 
-    # Check if partitions exist
-    if [[ -z "$partitions" ]]; then
+    # Clean up the partitions and store them in an array
+    cleaned_partitions=($(echo "$partitions" | sed "s/|//g" | sed 's/^[ \t]*//;s/[ \t]*$//' | grep -E "^load_date="))
+
+    # Check how many partitions we have
+    partition_count=${#cleaned_partitions[@]}
+
+    if [[ $partition_count -eq 0 ]]; then
         echo "No partitions found for table: $table"
         return
     fi
 
-    # Loop over each partition and drop it
-    while IFS= read -r partition; do
-        if [[ -n "$partition" ]]; then
-            echo "Processing partition $partition for table $table"
+    if [[ $partition_count -gt 3 ]]; then
+        # More than 3 partitions, perform bulk deletion using the first partition's date
+        first_partition="${cleaned_partitions[0]}"
+        first_partition_date=$(echo "$first_partition" | cut -d '=' -f 2)
+        
+        # Construct the bulk DROP PARTITION command
+        SQL_CMD="ALTER TABLE $table DROP PARTITION (load_date >= '$first_partition_date') PURGE;"
+        echo "Executing bulk partition deletion: $SQL_CMD"
 
-            # Convert partition into the correct format for ALTER TABLE statement
-            # e.g., from "load_date=2024-07-21/country_cd=US" or "load_date=2024-07-21"
-            # to "load_date='2024-07-21', country_cd='US'"
+        # Execute the command using Beeline
+        beeline --outputformat=tsv2 -e "$SQL_CMD"
+
+        # Check if the command was successful
+        if [[ $? -eq 0 ]]; then
+            echo "Successfully dropped partitions from load_date >= $first_partition_date from table $table"
+        else
+            echo "Failed to drop partitions from table $table"
+        fi
+    else
+        # Less than or equal to 3 partitions, delete them one by one
+        for partition in "${cleaned_partitions[@]}"; do
+            echo "Dropping partition $partition from table $table"
+            
+            # Convert partition into correct SQL format
             formatted_partition=$(echo "$partition" | sed "s/=/='/g" | sed "s/\//', /g" | sed "s/$/'/g")
 
             # Construct the ALTER TABLE command to drop the partition
@@ -47,8 +68,8 @@ drop_partitions() {
             else
                 echo "Failed to drop partition $partition from table $table"
             fi
-        fi
-    done <<< "$partitions"
+        done
+    fi
 }
 
 # Iterate over each table name in the file
