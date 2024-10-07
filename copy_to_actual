@@ -7,29 +7,32 @@ ACTUAL_DIR="/user/username/db"
 # Path to the file that contains table names
 TABLES_FILE="/path/to/tables.txt"
 
+# Define Beeline connection details (adjust as needed)
+BEELINE_URL="jdbc:hive2://localhost:10000/default"
+BEELINE_USER="your_username"
+BEELINE_PASS="your_password"
+
 # Read each line (table name) from the file
 while IFS= read -r table_name; do
     echo "Processing table: $table_name"
 
-    # Get the list of all partition paths under the temp location for the current table
-    partitions=$(hadoop fs -find "$TEMP_DIR/$table_name" -type d | grep -v "$TEMP_DIR/$table_name$")
+    # Get the list of partition directories under the temp location for the current table
+    partitions=$(hadoop fs -ls "$TEMP_DIR/$table_name" | awk '{print $8}')
 
-    for partition_path in $partitions; do
-        # Extract the partition relative path (after the table name)
-        relative_partition_path=$(echo "$partition_path" | sed "s|$TEMP_DIR/$table_name/||")
-
+    for partition in $partitions; do
         # Define the source and destination paths
-        source_path="$TEMP_DIR/$table_name/$relative_partition_path"
-        destination_path="$ACTUAL_DIR/$table_name/$relative_partition_path"
+        source_path="$partition"
+        destination_path="$ACTUAL_DIR/$table_name"
 
-        # Create destination directory if it doesn't exist
-        hadoop fs -mkdir -p "$ACTUAL_DIR/$table_name/$(dirname "$relative_partition_path")"
-
-        # Copy partition data from temp location to actual location
+        # Copy partition directory from temp location to actual location
         echo "Copying from $source_path to $destination_path"
         hadoop fs -cp "$source_path" "$destination_path"
     done
 
+    # After copying all partitions, run MSCK REPAIR TABLE using Beeline
+    echo "Running MSCK REPAIR TABLE on $table_name"
+    beeline -u "$BEELINE_URL" -n "$BEELINE_USER" -p "$BEELINE_PASS" --silent=true --outputformat=tsv2 -e "MSCK REPAIR TABLE $table_name"
+
 done < "$TABLES_FILE"
 
-echo "Data copy completed."
+echo "Data copy and table repair completed."
