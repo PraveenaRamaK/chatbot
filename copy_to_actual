@@ -1,0 +1,35 @@
+#!/bin/bash
+
+# Define the base directories
+TEMP_DIR="/user/username/db/cdh6"
+ACTUAL_DIR="/user/username/db"
+
+# Path to the file that contains table names
+TABLES_FILE="/path/to/tables.txt"
+
+# Read each line (table name) from the file
+while IFS= read -r table_name; do
+    echo "Processing table: $table_name"
+
+    # Get the list of all partition paths under the temp location for the current table
+    partitions=$(hadoop fs -find "$TEMP_DIR/$table_name" -type d | grep -v "$TEMP_DIR/$table_name$")
+
+    for partition_path in $partitions; do
+        # Extract the partition relative path (after the table name)
+        relative_partition_path=$(echo "$partition_path" | sed "s|$TEMP_DIR/$table_name/||")
+
+        # Define the source and destination paths
+        source_path="$TEMP_DIR/$table_name/$relative_partition_path"
+        destination_path="$ACTUAL_DIR/$table_name/$relative_partition_path"
+
+        # Create destination directory if it doesn't exist
+        hadoop fs -mkdir -p "$ACTUAL_DIR/$table_name/$(dirname "$relative_partition_path")"
+
+        # Copy partition data from temp location to actual location
+        echo "Copying from $source_path to $destination_path"
+        hadoop fs -cp "$source_path" "$destination_path"
+    done
+
+done < "$TABLES_FILE"
+
+echo "Data copy completed."
