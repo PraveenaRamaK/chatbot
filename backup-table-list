@@ -14,12 +14,28 @@ echo "<h1>Schema Report</h1>" >> $OUTPUT_FILE
 
 # Read keywords into an array and prepare regex pattern
 mapfile -t keywords < "$KEYWORDS_FILE"
-regex_pattern=$(IFS=\|; echo "${keywords[*]}")  # Create regex pattern
+
+# Prepare regex pattern for other keywords
+other_keywords_pattern=""
+for keyword in "${keywords[@]}"; do
+    if [[ "$keyword" == "old" ]]; then
+        # Special case for the "old" keyword
+        old_keyword_pattern="(^|[-_])old([-_]|$)"
+    else
+        # General case for other keywords
+        other_keywords_pattern+="($keyword)|"
+    fi
+done
+
+# Remove the trailing '|' from the other keywords pattern
+other_keywords_pattern="${other_keywords_pattern%|}"
 
 # Function to check if a table name contains any keyword
 contains_keyword() {
     local table_name="$1"
-    [[ "$table_name" =~ (^|[-_])($regex_pattern)([-_]|$) ]] && return 0
+    if [[ "$table_name" =~ $old_keyword_pattern || "$table_name" =~ $other_keywords_pattern ]]; then
+        return 0
+    fi
     return 1
 }
 
@@ -77,7 +93,7 @@ while IFS="|" read -r schema hdfs_location; do
 
             # Highlight row based on size and last modified date
             if (( table_size_bytes > SIZE_THRESHOLD )); then
-                highlight_row=" style='font-weight:bold; color:red;'"  # Bold and red if size exceeds threshold
+                highlight_row=" style='font-weight:bold; color:red;'"  # Bold and dark red if size exceeds threshold
             elif (( last_modified_timestamp < DATE_THRESHOLD )); then
                 highlight_row=" style='font-weight:bold; color:red;'"  # Bold and red if older than 90 days
             else
