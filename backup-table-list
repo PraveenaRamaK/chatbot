@@ -7,6 +7,7 @@ OUTPUT_FILE="schema_report.html" # Output HTML file
 
 # Initialize the HTML report
 echo "<html><head><title>Schema Report</title></head><body>" > $OUTPUT_FILE
+echo "<h1>Schema Report</h1>" >> $OUTPUT_FILE
 
 # Read keywords into an array
 mapfile -t keywords < "$KEYWORDS_FILE"
@@ -24,8 +25,9 @@ contains_keyword() {
 
 # Loop through each schema and its HDFS location
 while IFS="|" read -r schema hdfs_location; do
-    echo "<h1>Schema Name: $schema</h1>" >> $OUTPUT_FILE
-    echo "<ul>" >> $OUTPUT_FILE
+    echo "<h2>Schema Name: $schema</h2>" >> $OUTPUT_FILE
+    echo "<table border='1' cellpadding='5' cellspacing='0'>" >> $OUTPUT_FILE
+    echo "<tr><th>Table Name</th><th>Size</th></tr>" >> $OUTPUT_FILE
 
     # Query tables in schema using Beeline
     tables=$(beeline -u "jdbc:hive2://your_hive_server:port" -e "USE $schema; SHOW TABLES;" 2>/dev/null | tail -n +3)
@@ -37,16 +39,19 @@ while IFS="|" read -r schema hdfs_location; do
 
         # Check if table name contains any keyword
         if contains_keyword "$table"; then
+            # Extract table name without schema prefix (if in the form schema.table)
+            table_name="${table##*.}"
+
             # Get table size in HDFS
-            table_location="$hdfs_location/$table"
+            table_location="$hdfs_location/$table_name"
             table_size=$(hdfs dfs -du -s -h "$table_location" 2>/dev/null | awk '{print $1, $2}')
 
-            # Output the table and size information to HTML
-            echo "<li>Table: $table - Size: $table_size</li>" >> $OUTPUT_FILE
+            # Output the table and size information as a row in HTML
+            echo "<tr><td>$table</td><td>$table_size</td></tr>" >> $OUTPUT_FILE
         fi
     done <<< "$tables"
 
-    echo "</ul>" >> $OUTPUT_FILE
+    echo "</table><br>" >> $OUTPUT_FILE
 
 done < "$SCHEMA_FILE"
 
@@ -55,17 +60,3 @@ echo "</body></html>" >> $OUTPUT_FILE
 
 # Display completion message
 echo "Schema report generated: $OUTPUT_FILE"
-
-
-backup
-bkp
-backp
-archive
-old
-new
-cdh6
-cdp7
-2022
-2023
-2024
-
