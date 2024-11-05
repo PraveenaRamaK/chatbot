@@ -12,17 +12,14 @@ DATE_THRESHOLD=$(date -d "90 days ago" +%s)  # 90 days ago timestamp
 echo "<html><head><title>Schema Report</title></head><body>" > $OUTPUT_FILE
 echo "<h1>Schema Report</h1>" >> $OUTPUT_FILE
 
-# Read keywords into an array
+# Read keywords into an array and prepare regex pattern
 mapfile -t keywords < "$KEYWORDS_FILE"
+regex_pattern=$(IFS=\|; echo "${keywords[*]}")  # Create regex pattern
 
 # Function to check if a table name contains any keyword
 contains_keyword() {
     local table_name="$1"
-    for keyword in "${keywords[@]}"; do
-        if [[ "$table_name" == *"$keyword"* ]]; then
-            return 0
-        fi
-    done
+    [[ "$table_name" =~ (^|[-_])($regex_pattern)([-_]|$) ]] && return 0
     return 1
 }
 
@@ -44,7 +41,7 @@ convert_size() {
 while IFS="|" read -r schema hdfs_location; do
     schema_keyword_total_size=0  # Track total size for all keyword-matched tables in bytes
 
-    # Query tables and views in schema using Beeline
+    # Query all tables in the schema using Beeline
     tables=$(beeline -u "$JDBC_URL" --outputformat=tsv2 -e "USE $schema; SHOW TABLES;" 2>/dev/null | tail -n +3)
 
     # Start gathering schema information to display in HTML
@@ -53,41 +50,43 @@ while IFS="|" read -r schema hdfs_location; do
         # Skip empty lines
         [ -z "$table" ] && continue
 
-        # Check if table name contains any keyword
-        if contains_keyword "$table"; then
-            # Extract table name without schema prefix (if in the form schema.table)
-            table_name="${table##*.}"
-
-            # Determine if it's a Table or View
-            table_type=$(beeline -u "$JDBC_URL" --outputformat=tsv2 -e "USE $schema; DESCRIBE FORMATTED $table;" 2>/dev/null | grep -i "Table Type" | awk '{print $3}')
-            if [[ "$table_type" == "VIEW" ]]; then
-                table_size="N/A"
-                last_modified="N/A"
-                highlight_row=""
-            else
-                # Get table size in bytes from HDFS
-                table_location="$hdfs_location/$table_name"
-                table_size_bytes=$(hdfs dfs -du -s "$table_location" 2>/dev/null | awk '{print $1}')
-                table_size=$(convert_size "$table_size_bytes")
-                schema_keyword_total_size=$((schema_keyword_total_size + table_size_bytes))  # Add to total for keyword-matched tables
-
-                # Get last modified time and convert it to a timestamp
-                last_modified=$(hdfs dfs -stat "%y" "$table_location" 2>/dev/null)
-                last_modified_timestamp=$(date -d "$last_modified" +%s 2>/dev/null)
-
-                # Highlight row based on size and last modified date
-                if (( table_size_bytes > SIZE_THRESHOLD )); then
-                    highlight_row=" style='color:darkred;'"  # Dark red if size exceeds threshold
-                elif (( last_modified_timestamp < DATE_THRESHOLD )); then
-                    highlight_row=" style='color:red;'"  # Standard red if older than 90 days
-                else
-                    highlight_row=""
-                fi
-            fi
-
-            # Add table info to HTML
-            table_html+="<tr$highlight_row><td>$table</td><td>$table_type</td><td>$table_size</td><td>$last_modified</td></tr>"
+        # Check if the table matches the keywords
+        if ! contains_keyword "$table"; then
+            continue  # Skip this table if it does not match any keyword
         fi
+
+        # Extract table name without schema prefix (if in the form schema.table)
+        table_name="${table##*.}"
+
+        # Determine if it's a Table or View
+        table_type=$(beeline -u "$JDBC_URL" --outputformat=tsv2 -e "USE $schema; DESCRIBE FORMATTED $table;" 2>/dev/null | grep -i "Table Type" | awk '{print $3}')
+        if [[ "$table_type" == "VIEW" ]]; then
+            table_size="N/A"
+            last_modified="N/A"
+            highlight_row=""
+        else
+            # Get table size in bytes from HDFS
+            table_location="$hdfs_location/$table_name"
+            table_size_bytes=$(hdfs dfs -du -s "$table_location" 2>/dev/null | awk '{print $1}')
+            table_size=$(convert_size "$table_size_bytes")
+            schema_keyword_total_size=$((schema_keyword_total_size + table_size_bytes))  # Add to total for keyword-matched tables
+
+            # Get last modified time and convert it to a timestamp
+            last_modified=$(hdfs dfs -stat "%y" "$table_location" 2>/dev/null)
+            last_modified_timestamp=$(date -d "$last_modified" +%s 2>/dev/null)
+
+            # Highlight row based on size and last modified date
+            if (( table_size_bytes > SIZE_THRESHOLD )); then
+                highlight_row=" style='font-weight:bold; color:red;'"  # Bold and red if size exceeds threshold
+            elif (( last_modified_timestamp < DATE_THRESHOLD )); then
+                highlight_row=" style='font-weight:bold; color:red;'"  # Bold and red if older than 90 days
+            else
+                highlight_row=""
+            fi
+        fi
+
+        # Add table info to HTML
+        table_html+="<tr$highlight_row><td>$table</td><td>$table_type</td><td>$table_size</td><td>$last_modified</td></tr>"
     done <<< "$tables"
 
     # Convert total keyword-matched table size to human-readable format
