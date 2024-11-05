@@ -1,1 +1,58 @@
+#!/bin/bash
+
+# Configurations
+SCHEMA_FILE="schemas.txt"       # Schema file format: schema_name|hdfs_location
+KEYWORDS_FILE="keywords.txt"    # Keywords file, each keyword on a new line
+OUTPUT_FILE="schema_report.html" # Output HTML file
+
+# Initialize the HTML report
+echo "<html><head><title>Schema Report</title></head><body>" > $OUTPUT_FILE
+
+# Read keywords into an array
+mapfile -t keywords < "$KEYWORDS_FILE"
+
+# Function to check if a table name contains any keyword
+contains_keyword() {
+    local table_name="$1"
+    for keyword in "${keywords[@]}"; do
+        if [[ "$table_name" == *"$keyword"* ]]; then
+            return 0
+        fi
+    done
+    return 1
+}
+
+# Loop through each schema and its HDFS location
+while IFS="|" read -r schema hdfs_location; do
+    echo "<h1>Schema Name: $schema</h1>" >> $OUTPUT_FILE
+    echo "<ul>" >> $OUTPUT_FILE
+
+    # Query tables in schema using Beeline
+    tables=$(beeline -u "jdbc:hive2://your_hive_server:port" -e "USE $schema; SHOW TABLES;" 2>/dev/null | tail -n +3)
+
+    # Process each table
+    while IFS= read -r table; do
+        # Skip empty lines
+        [ -z "$table" ] && continue
+
+        # Check if table name contains any keyword
+        if contains_keyword "$table"; then
+            # Get table size in HDFS
+            table_location="$hdfs_location/$table"
+            table_size=$(hdfs dfs -du -s -h "$table_location" 2>/dev/null | awk '{print $1, $2}')
+
+            # Output the table and size information to HTML
+            echo "<li>Table: $table - Size: $table_size</li>" >> $OUTPUT_FILE
+        fi
+    done <<< "$tables"
+
+    echo "</ul>" >> $OUTPUT_FILE
+
+done < "$SCHEMA_FILE"
+
+# Finalize the HTML report
+echo "</body></html>" >> $OUTPUT_FILE
+
+# Display completion message
+echo "Schema report generated: $OUTPUT_FILE"
 
