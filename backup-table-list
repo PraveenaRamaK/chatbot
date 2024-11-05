@@ -56,3 +56,16 @@ echo "</body></html>" >> $OUTPUT_FILE
 # Display completion message
 echo "Schema report generated: $OUTPUT_FILE"
 
+
+backup
+bkp
+backp
+archive
+old
+new
+cdh6
+cdp7
+2022
+2023
+2024
+
