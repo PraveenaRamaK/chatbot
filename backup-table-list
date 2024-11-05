@@ -4,6 +4,8 @@
 SCHEMA_FILE="schemas.txt"       # Schema file format: schema_name|hdfs_location
 KEYWORDS_FILE="keywords.txt"    # Keywords file, each keyword on a new line
 OUTPUT_FILE="schema_report.html" # Output HTML file
+SIZE_THRESHOLD=$((450 * 1024 * 1024 * 1024)) # 450 GB in bytes
+DATE_THRESHOLD=$(date -d "90 days ago" +%s)  # 90 days ago timestamp
 
 # Initialize the HTML report
 echo "<html><head><title>Schema Report</title></head><body>" > $OUTPUT_FILE
@@ -23,13 +25,29 @@ contains_keyword() {
     return 1
 }
 
+# Function to convert bytes to a human-readable format
+convert_size() {
+    local bytes=$1
+    if (( bytes < 1024 )); then
+        echo "${bytes} B"
+    elif (( bytes < 1048576 )); then
+        echo "$((bytes / 1024)) KB"
+    elif (( bytes < 1073741824 )); then
+        echo "$((bytes / 1048576)) MB"
+    else
+        echo "$((bytes / 1073741824)) GB"
+    fi
+}
+
 # Loop through each schema and its HDFS location
 while IFS="|" read -r schema hdfs_location; do
     echo "<h2>Schema Name: $schema</h2>" >> $OUTPUT_FILE
     echo "<table border='1' cellpadding='5' cellspacing='0'>" >> $OUTPUT_FILE
-    echo "<tr><th>Table Name</th><th>Size</th></tr>" >> $OUTPUT_FILE
+    echo "<tr><th>Table Name</th><th>Type</th><th>Size</th><th>Last Modified</th></tr>" >> $OUTPUT_FILE
 
-    # Query tables in schema using Beeline
+    total_backup_size=0  # Track total size of backup tables for each schema in bytes
+
+    # Query tables and views in schema using Beeline
     tables=$(beeline -u "jdbc:hive2://your_hive_server:port" -e "USE $schema; SHOW TABLES;" 2>/dev/null | tail -n +3)
 
     # Process each table
@@ -42,14 +60,43 @@ while IFS="|" read -r schema hdfs_location; do
             # Extract table name without schema prefix (if in the form schema.table)
             table_name="${table##*.}"
 
-            # Get table size in HDFS
-            table_location="$hdfs_location/$table_name"
-            table_size=$(hdfs dfs -du -s -h "$table_location" 2>/dev/null | awk '{print $1, $2}')
+            # Determine if it's a Table or View
+            table_type=$(beeline -u "jdbc:hive2://your_hive_server:port" -e "USE $schema; DESCRIBE FORMATTED $table;" 2>/dev/null | grep -i "Table Type" | awk '{print $3}')
+            if [[ "$table_type" == "VIEW" ]]; then
+                table_size="VIEW"
+                last_modified="N/A"
+                highlight_row=""
+            else
+                # Get table size in bytes from HDFS
+                table_location="$hdfs_location/$table_name"
+                table_size_bytes=$(hdfs dfs -du -s "$table_location" 2>/dev/null | awk '{print $1}')
+                table_size=$(convert_size "$table_size_bytes")
 
-            # Output the table and size information as a row in HTML
-            echo "<tr><td>$table</td><td>$table_size</td></tr>" >> $OUTPUT_FILE
+                # Get last modified time and convert it to a timestamp
+                last_modified=$(hdfs dfs -stat "%y" "$table_location" 2>/dev/null)
+                last_modified_timestamp=$(date -d "$last_modified" +%s 2>/dev/null)
+
+                # Track total backup size for tables containing "backup" keywords
+                if [[ "$table_name" == *"backup"* ]]; then
+                    total_backup_size=$((total_backup_size + table_size_bytes))
+                fi
+
+                # Apply red highlight if size exceeds 450 GB or last modified > 90 days
+                if (( table_size_bytes > SIZE_THRESHOLD )) || (( last_modified_timestamp < DATE_THRESHOLD )); then
+                    highlight_row=" style='color:red;'"
+                else
+                    highlight_row=""
+                fi
+            fi
+
+            # Output the table/view and size information as a row in HTML
+            echo "<tr$highlight_row><td>$table</td><td>$table_type</td><td>$table_size</td><td>$last_modified</td></tr>" >> $OUTPUT_FILE
         fi
     done <<< "$tables"
+
+    # Convert total backup size to human-readable format
+    total_backup_size_human=$(convert_size "$total_backup_size")
+    echo "<tr><td colspan='4'><strong>Total Backup Size:</strong> $total_backup_size_human</td></tr>" >> $OUTPUT_FILE
 
     echo "</table><br>" >> $OUTPUT_FILE
 
