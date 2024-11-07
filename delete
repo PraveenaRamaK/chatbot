@@ -1,0 +1,13 @@
+#!/bin/bash
+
+# List of nodes
+NODES=("node1" "node2" "node3")  # Replace with your actual node hostnames or IPs
+
+# Directory to delete
+DIR_PATH="/path/to/directory"  # Replace with the actual directory path you want to delete
+
+# Loop through each node
+for NODE in "${NODES[@]}"; do
+    echo "Checking directory on $NODE..."
+    ssh "$NODE" "[ -d $DIR_PATH ] && rm -rf $DIR_PATH && echo 'Directory deleted on $NODE' || echo 'Directory does not exist on $NODE'"
+done
